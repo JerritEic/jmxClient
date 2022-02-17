@@ -8,6 +8,7 @@ import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
+import java.util.Set;
 
 public class jmxClient {
     // Collect ticks every 2.5 seconds
@@ -35,9 +36,9 @@ public class jmxClient {
         if (args.length >= 4)
             timeToSample =  Long.parseLong(args[3]);
         String filePath = outFolder + "/tick_log.csv";
-        JMXServiceURL url = new JMXServiceURL("service:jmx:rmi:///jndi/rmi://" + id  +":"+ portnum + "/jmxrmi");
+        JMXServiceURL url = new JMXServiceURL("service:jmx:rmi:///jndi/rmi://:" + portnum + "/jmxrmi");
 
-        JMXConnector jmxc = JMXConnectorFactory.connect(url);
+        JMXConnector jmxc = JMXConnectorFactory.connect(url, null);
         MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
 
         long[] curr = null;
@@ -49,7 +50,6 @@ public class jmxClient {
         out.write(to_write);
 
         long endTime = System.currentTimeMillis() + timeToSample;
-
         // Begin sampling
         while (true) {
             long sampleStartTime = System.currentTimeMillis();
@@ -62,14 +62,18 @@ public class jmxClient {
             try {
                 val = mbsc.getAttribute(new ObjectName(id), "tickTimes");
             } catch (InstanceNotFoundException e) {
-                echo("tickTimes not found, waiting...");
+                System.out.println("tickTimes not found, waiting...");
+                Set<ObjectName> MBeans = mbsc.queryNames(null,null);
+                for (ObjectName name : MBeans){
+                    System.out.println(name);
+                }
                 Thread.sleep(1000L);
                 continue;
             }
             // cast to correct type and check if successful
             long[] vals = (long[])val;
             if (vals.length != 100) {
-                echo("Error: Malformed tickTimes array.\n");
+                System.out.println("Error: Malformed tickTimes array.\n");
                 break;
             }
 
@@ -174,4 +178,5 @@ public class jmxClient {
         }
         return counter;
     }
+
 }
