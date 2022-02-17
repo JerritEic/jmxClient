@@ -1,14 +1,13 @@
 package jmxClient;
 
 import java.io.FileWriter;
-import java.util.Arrays;
+import java.util.*;
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
-import java.util.Set;
 
 public class jmxClient {
     // Collect ticks every 2.5 seconds
@@ -54,7 +53,7 @@ public class jmxClient {
         while (true) {
             long sampleStartTime = System.currentTimeMillis();
             if(sampleStartTime > endTime){
-                echo("sample duration expired.");
+                System.out.println("sample duration expired.");
                 break;
             }
             // Fetch 'val' at RMI stub with name 'tickTime'
@@ -80,7 +79,7 @@ public class jmxClient {
             curr = vals;
             if (prev != null) {
                 // Check against previously collected ticks, if exists
-                long[] array = findNew(prev, curr, 50);
+                long[] array = findNew(prev, curr);
                 // Assign pseudo-timestamps to collected ticks and write to file
                 if (array.length != 1) {
                     for (int x = 0; x < array.length; x++) {
@@ -97,86 +96,73 @@ public class jmxClient {
     }
 
     /*
-     *  Compare previous and current set of ticks to find the beginning of the range of new ticks
+     *  Compare previous and current set of ticks to find block of continuous changed ticks
      */
-    public static long[] findNew(long[] prev, long[] curr, int max) {
-        long[] diff = listDiff(prev, curr);
-        int farthest = -1;
-        // Farthest is index of last non-zero value that is right after a zero value
-        for (int i = 0; i < diff.length; i++) {
-            if (diff[i] == 0L)
-                // Edge case of switch exactly at diff.length-1
-                if (i + 1 == diff.length) {
-                    if (diff[0] != 0L)
-                        farthest = 0;
-                } else if (diff[i + 1] != 0L) {
-                    farthest = i + 1;
+    public static long[] findNew(long[] prev, long[] curr) {
+
+        List<Integer> oldToNew = new ArrayList<Integer>();
+        List<Integer> newToOld = new ArrayList<Integer>();
+        // Find changes from old to new values
+        for(int i =0; i < prev.length; i++){
+            int j = (i + 1) % prev.length;
+            if(prev[i] == curr[i] && prev[j] != curr[j]){
+                oldToNew.add(j);
+            }
+            if(prev[i] != curr[i] && prev[j] == curr[j]){
+                newToOld.add(j);
+            }
+        }
+        
+        if(oldToNew.size() == 1 && newToOld.size() ==1){
+            return subArray(curr, oldToNew.get(0), newToOld.get(0));
+        }
+        // Else there is an extraneous value that is the same by chance as same spot in prev array,
+        // should generally never happen
+        System.out.println("Duplicate value detected in new ticks values!");
+        // Find start and end to maximize new values (and minimize old ones)
+        int minOld = Integer.MAX_VALUE;
+        int maxNew = 0;
+        int bestStart = -1;
+        int bestEnd = -1;
+        for(int start: oldToNew){
+            for (int finish : newToOld){
+                int i = start;
+                int numOld = 0;
+                int numNew = 0;
+                while(i != finish){
+                    if(prev[i] == curr[i]){numOld++;} else {numNew++;}
+                    i = (i + 1) % curr.length;
                 }
+                // Lexicographic order numNew, numOld
+                if(numNew > maxNew){
+                    maxNew = numNew;
+                    minOld = numOld;
+                    bestStart = start;
+                    bestEnd = finish;
+                } else if(numNew == maxNew){
+                    if(numOld <= minOld){
+                        maxNew = numNew;
+                        minOld = numOld;
+                        bestStart = start;
+                        bestEnd = finish;
+                    }
+                }
+            }
         }
-        // All values zero
-        if (farthest == -1) {
-            echo("Error: No change in tickTime array.\n");
-            printArray(prev);
-            printArray(curr);
-            return new long[1];
-        }
-        return getNonZero(diff, farthest, max);
+        return subArray(curr, bestStart, bestEnd);
     }
 
-    /*
-     *  If value at index is same in prev and curr, set it to 0. As sampling frequency is 2.5 seconds and the full
-     *  array of 100 ticks is 5 seconds worth of ticks, the new 50 ticks shouldn't overlap with the 50 previous
-     *  new ticks.
-     */
-    public static long[] listDiff(long[] prev, long[] curr) {
-        long[] diff = (long[])curr.clone();
-        for (int i = 0; i < prev.length; i++) {
-            if (curr[i] - prev[i] == 0L)
-                diff[i] = 0L;
+    // Copies array from indices start to finish, in circular fashion
+    public static long[] subArray(long[] array, int start, int finish){
+        int size = finish - start;
+        if(start > finish){
+            size = (array.length - start) + finish;
         }
-        return diff;
-    }
-
-    /* Return up to max values from array starting at index start
-     *
-     */
-    public static long[] getNonZero(long[] array, int start, int max) {
-        long[] temp = new long[max];
-        Arrays.fill(temp, -1L);
-        int j = 0;
-        for (int i = 0; i < max; i++) {
-            j = start + i;
-            if (j >= array.length)
-                j = start + i - array.length;
-            if (array[j] != 0L)
-                temp[i] = array[j];
+        long[] temp = new long[size];
+        for(int i =0; i < size; i++){
+            int j = (start + i) % array.length;
+            temp[i] = array[j];
         }
         return temp;
     }
-
-    //--------------- UTILITY FUNCTIONS ----------------------
-    public static void echo(String str) {
-        System.out.print(str);
-    }
-
-    public static double findAverage(long[] array) {
-        return Arrays.stream(array).average().orElse(Double.NaN);
-    }
-
-    public static void printArray(long[] array) {
-        echo("[ ");
-        for (int i = 0; i < array.length; i++)
-            echo("" + array[i] + ", ");
-        echo(" ]\n");
-    }
-
-    public static int findNumDiff(long[] first, long[] sec) {
-        int counter = 0;
-        for (int i = 0; i < first.length; i++) {
-            if (first[i] != sec[i])
-                counter++;
-        }
-        return counter;
-    }
-
 }
