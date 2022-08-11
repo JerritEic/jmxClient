@@ -1,105 +1,122 @@
 package client;
 
 import java.io.FileWriter;
-import java.util.*;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Options;
 
 public class JmxClient {
     // Collect ticks every 2.5 seconds
     static int SAMPLING_INTERVAL = 2500;
 
-    /* Entry point
-     * Takes 4 optional arguments:
-     *    - id: the RMI stub, specific for the tested server
-     *    - port: the RMI port number
-     *    - out_folder: the file location to output tick log
-     *    - duration: max time to continue collecting ticks in milliseconds, defaults to max long
-     */
     public static void main(String[] args) throws Exception {
+        Options options = new Options();
+        options.addOption("help", false, "print this message");
+        options.addOption(Option.IP.getName(), true, "Minecraft server IP address");
+        options.addOption(Option.PORT.getName(), true, "Minecraft server port number");
+        options.addOption(Option.ID.getName(), true, "ID of the JMX resource to access");
+        options.addOption(Option.OUT.getName(), true, "output directory");
+        options.addOption(Option.DUR.getName(), true, "sample duration");
 
-        String portnum = "25585";
-        String id = "net.minecraft.server:type=Server";
-        String outFolder = "0";
-        long timeToSample = Long.MAX_VALUE;
-        if (args.length >= 1)
-            id = args[0];
-        if (args.length >= 2)
-            portnum = args[1];
-        if (args.length >= 3)
-            outFolder = args[2];
-        if (args.length >= 4)
-            timeToSample =  Long.parseLong(args[3]);
-        String filePath = outFolder + "/tick_log.csv";
+        CommandLineParser parser = new DefaultParser();
+        CommandLine cmd = parser.parse(options, args);
+
+        if (cmd.hasOption("help")) {
+            HelpFormatter formatter = new HelpFormatter();
+            formatter.printHelp("jmxClient", options);
+            System.exit(0);
+        }
+
+        String ip = cmd.getOptionValue(Option.IP.getName(), Option.IP.getDefault());
+        String portnum = cmd.getOptionValue(Option.PORT.getName(), Option.PORT.getDefault());
+        String id = cmd.getOptionValue(Option.ID.getName(), Option.ID.getDefault());
+        Path filePath = Paths.get(cmd.getOptionValue(Option.OUT.getName(), Option.OUT.getDefault()),
+            "tick_log.csv");
+        long timeToSample = Long.parseLong(cmd.getOptionValue(Option.DUR.getName(),
+            Option.DUR.getDefault()));
+
         /*
-        * The JMX URI/URL system is confusing but well documented. For a succinct version see:
-        *  https://stackoverflow.com/questions/2768087/explain-jmx-url
-        */
-        JMXServiceURL url = new JMXServiceURL("service:jmx:rmi:///jndi/rmi://:" + portnum + "/jmxrmi");
+         * The JMX URI/URL system is confusing but well documented. For a succinct version see:
+         *  https://stackoverflow.com/questions/2768087/explain-jmx-url
+         */
+        JMXServiceURL url = new JMXServiceURL(
+            "service:jmx:rmi:///jndi/rmi://%s:%s/jmxrmi".formatted(ip, portnum));
 
         JMXConnector jmxc = JMXConnectorFactory.connect(url, null);
         MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
 
-        long[] curr = null;
+        long[] curr;
         long[] prev = null;
         int currentTimestamp = 0;
 
         // Initialize the file to write tick time too
         String toWrite = "timestamp, tickTime,\n";
-        FileWriter out = new FileWriter(filePath);
-        out.write(toWrite);
+        try (FileWriter out = new FileWriter(filePath.toFile())) {
+            out.write(toWrite);
 
-        long endTime = System.currentTimeMillis() + timeToSample;
-        // Begin sampling
-        while (true) {
-            long sampleStartTime = System.currentTimeMillis();
-            if(sampleStartTime > endTime){
-                System.out.println("sample duration expired.");
-                break;
-            }
-            // Fetch 'val' at RMI stub with name 'tickTime'
-            Object val = null;
-            try {
-                val = mbsc.getAttribute(new ObjectName(id), "tickTimes");
-            } catch (InstanceNotFoundException e) {
-                System.out.println("tickTimes not found, waiting...\n");
-                // Queries and outputs all registered MBeans
-                Set<ObjectName> MBeans = mbsc.queryNames(null,null);
-                for (ObjectName name : MBeans){
-                    System.out.println(name);
+            long currentTime = System.currentTimeMillis();
+            // Compute end time (currentTime + timeToSample), but protect against wrap around
+            long endTime = timeToSample > (Long.MAX_VALUE - currentTime) ? Long.MAX_VALUE : currentTime
+                + timeToSample;
+            // Begin sampling
+            while (true) {
+                long sampleStartTime = System.currentTimeMillis();
+                if (sampleStartTime > endTime) {
+                    System.out.println("sample duration expired.");
+                    break;
                 }
-                Thread.sleep(1000L);
-                continue;
-            }
-            // cast to correct type and check if successful
-            long[] vals = (long[])val;
-            if (vals.length != 100) {
-                System.out.println("Error: Malformed tickTimes array.\n");
-                break;
-            }
-
-            curr = vals;
-            if (prev != null) {
-                // Check against previously collected ticks, if exists
-                long[] array = findNew(prev, curr);
-                // Assign logical timestamps to collected ticks and write to file
-                if (array.length != 1) {
-                    for (int x = 0; x < array.length; x++) {
-                        toWrite = "%d,%d,\n".formatted(currentTimestamp, array[x]);
-                        currentTimestamp++;
-                        out.write(toWrite);
+                // Fetch 'val' at RMI stub with name 'tickTime'
+                Object val;
+                try {
+                    val = mbsc.getAttribute(new ObjectName(id), "tickTimes");
+                } catch (InstanceNotFoundException e) {
+                    System.out.println("tickTimes not found, waiting...");
+                    // Queries and outputs all registered MBeans
+                    Set<ObjectName> MBeans = mbsc.queryNames(null, null);
+                    for (ObjectName name : MBeans) {
+                        System.out.println(name);
                     }
-                    out.flush();
+                    Thread.sleep(1000L);
+                    continue;
                 }
+                // cast to correct type and check if successful
+                long[] vals = (long[]) val;
+                if (vals.length != 100) {
+                    System.out.println("Error: Malformed tickTimes array.\n");
+                    break;
+                }
+
+                curr = vals;
+                if (prev != null) {
+                    // Check against previously collected ticks, if exists
+                    long[] array = findNew(prev, curr);
+                    // Assign logical timestamps to collected ticks and write to file
+                    if (array.length != 1) {
+                        for (long l : array) {
+                            toWrite = "%d,%d,\n".formatted(currentTimestamp++, l);
+                            out.write(toWrite);
+                        }
+                        out.flush();
+                    }
+                }
+                prev = curr;
+                Thread.sleep(SAMPLING_INTERVAL);
             }
-            prev = curr;
-            Thread.sleep(SAMPLING_INTERVAL);
         }
-        out.close();
     }
 
     /*
@@ -107,8 +124,8 @@ public class JmxClient {
      */
     public static long[] findNew(long[] prev, long[] curr) {
 
-        List<Integer> oldToNew = new ArrayList<Integer>();
-        List<Integer> newToOld = new ArrayList<Integer>();
+        List<Integer> oldToNew = new ArrayList<>();
+        List<Integer> newToOld = new ArrayList<>();
         // Find all indices of changes from old to new values
         for(int i =0; i < prev.length; i++){
             int j = (i + 1) % prev.length;
@@ -180,7 +197,7 @@ public class JmxClient {
      *  new ticks.
      */
     public static long[] listDiff(long[] prev, long[] curr) {
-        long[] diff = (long[])curr.clone();
+        long[] diff = curr.clone();
         for (int i = 0; i < prev.length; i++) {
             if (curr[i] - prev[i] == 0L)
                 diff[i] = 0L;
@@ -194,7 +211,7 @@ public class JmxClient {
     public static long[] getNonZero(long[] array, int start, int max) {
         long[] temp = new long[max];
         Arrays.fill(temp, -1L);
-        int j = 0;
+        int j;
         for (int i = 0; i < max; i++) {
             j = start + i;
             if (j >= array.length)
@@ -214,8 +231,9 @@ public class JmxClient {
 
     public static void printArray(long[] array) {
         echo("[ ");
-        for (int i = 0; i < array.length; i++)
-            echo("" + array[i] + ", ");
+        for (long l : array) {
+            echo("" + l + ", ");
+        }
         echo(" ]\n");
     }
 
