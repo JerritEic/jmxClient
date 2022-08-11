@@ -40,7 +40,7 @@ public class JmxClient {
         }
 
         String ip = cmd.getOptionValue("ip", "");
-        String portnum = cmd.getOptionValue("port", "25585");
+        String portnum = cmd.getOptionValue("port", "25564");
         String id = cmd.getOptionValue("id", "net.minecraft.server:type=Server");
         Path filePath = Paths.get(cmd.getOptionValue("out", "."), "tick_log.csv");
         long timeToSample = cmd.hasOption("dur") ? Long.parseLong(cmd.getOptionValue("dur")) :
