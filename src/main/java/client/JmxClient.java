@@ -4,7 +4,10 @@ import java.io.FileWriter;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.MessageFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
@@ -47,6 +50,10 @@ public class JmxClient {
         long timeToSample = Long.parseLong(cmd.getOptionValue(Option.DUR.getName(),
             Option.DUR.getDefault()));
 
+        /*
+         * The JMX URI/URL system is confusing but well documented. For a succinct version see:
+         *  https://stackoverflow.com/questions/2768087/explain-jmx-url
+         */
         JMXServiceURL url = new JMXServiceURL(MessageFormat.format(
             "service:jmx:rmi:///jndi/rmi://{0}:{1}/jmxrmi", ip, portnum));
 
@@ -55,6 +62,7 @@ public class JmxClient {
 
         long[] curr = null;
         long[] prev = null;
+        int currentTimestamp = 0;
 
         // Initialize the file to write tick time too
         String toWrite = "timestamp, tickTime,\n";
@@ -77,7 +85,8 @@ public class JmxClient {
             try {
                 val = mbsc.getAttribute(new ObjectName(id), "tickTimes");
             } catch (InstanceNotFoundException e) {
-                System.out.println("tickTimes not found, waiting...");
+                System.out.println("tickTimes not found, waiting...\n");
+                // Queries and outputs all registered MBeans
                 Set<ObjectName> MBeans = mbsc.queryNames(null,null);
                 for (ObjectName name : MBeans){
                     System.out.println(name);
@@ -96,10 +105,11 @@ public class JmxClient {
             if (prev != null) {
                 // Check against previously collected ticks, if exists
                 long[] array = findNew(prev, curr);
-                // Assign pseudo-timestamps to collected ticks and write to file
+                // Assign logical timestamps to collected ticks and write to file
                 if (array.length != 1) {
                     for (int x = 0; x < array.length; x++) {
-                        toWrite = "%d,%d,\n".formatted(sampleStartTime + (50L * x), array[x]);
+                        toWrite = "%d,%d,\n".formatted(currentTimestamp, array[x]);
+                        currentTimestamp++;
                         out.write(toWrite);
                     }
                     out.flush();
@@ -116,9 +126,9 @@ public class JmxClient {
      */
     public static long[] findNew(long[] prev, long[] curr) {
 
-        List<Integer> oldToNew = new ArrayList<Integer>();
-        List<Integer> newToOld = new ArrayList<Integer>();
-        // Find changes from old to new values
+        List<Integer> oldToNew = new ArrayList<>();
+        List<Integer> newToOld = new ArrayList<>();
+        // Find all indices of changes from old to new values
         for(int i =0; i < prev.length; i++){
             int j = (i + 1) % prev.length;
             if(prev[i] == curr[i] && prev[j] != curr[j]){
@@ -128,14 +138,14 @@ public class JmxClient {
                 newToOld.add(j);
             }
         }
-        
+        // Simplest case, there is a clear start and end to new values
         if(oldToNew.size() == 1 && newToOld.size() ==1){
             return subArray(curr, oldToNew.get(0), newToOld.get(0));
         }
         // Else there is an extraneous value that is the same by chance as same spot in prev array,
-        // should generally never happen
+        // very unlikely to happen
         System.out.println("Duplicate value detected in new ticks values!");
-        // Find start and end to maximize new values (and minimize old ones)
+        // Iterate start and finish indices to find combination that maximize new values (and minimize old ones)
         int minOld = Integer.MAX_VALUE;
         int maxNew = 0;
         int bestStart = -1;
@@ -168,7 +178,7 @@ public class JmxClient {
         return subArray(curr, bestStart, bestEnd);
     }
 
-    // Copies array from indices start to finish, in circular fashion
+    // Returns a subarray of array starting at index start and ending at finish. Finish may be less than start.
     public static long[] subArray(long[] array, int start, int finish){
         int size = finish - start;
         if(start > finish){
@@ -180,5 +190,60 @@ public class JmxClient {
             temp[i] = array[j];
         }
         return temp;
+    }
+
+    //--------------- UTILITY FUNCTIONS ----------------------
+    /*
+     *  If value at index is same in prev and curr, set it to 0. As sampling frequency is 2.5 seconds and the full
+     *  array of 100 ticks is 5 seconds worth of ticks, the new 50 ticks shouldn't overlap with the 50 previous
+     *  new ticks.
+     */
+    public static long[] listDiff(long[] prev, long[] curr) {
+        long[] diff = curr.clone();
+        for (int i = 0; i < prev.length; i++) {
+            if (curr[i] - prev[i] == 0L)
+                diff[i] = 0L;
+        }
+        return diff;
+    }
+
+    /*
+     * Return up to max number of values from array starting at index start
+     */
+    public static long[] getNonZero(long[] array, int start, int max) {
+        long[] temp = new long[max];
+        Arrays.fill(temp, -1L);
+        int j = 0;
+        for (int i = 0; i < max; i++) {
+            j = start + i;
+            if (j >= array.length)
+                j = start + i - array.length;
+            if (array[j] != 0L)
+                temp[i] = array[j];
+        }
+        return temp;
+    }
+    public static void echo(String str) {
+        System.out.print(str);
+    }
+
+    public static double findAverage(long[] array) {
+        return Arrays.stream(array).average().orElse(Double.NaN);
+    }
+
+    public static void printArray(long[] array) {
+        echo("[ ");
+        for (int i = 0; i < array.length; i++)
+            echo("" + array[i] + ", ");
+        echo(" ]\n");
+    }
+
+    public static int findNumDiff(long[] first, long[] sec) {
+        int counter = 0;
+        for (int i = 0; i < first.length; i++) {
+            if (first[i] != sec[i])
+                counter++;
+        }
+        return counter;
     }
 }
