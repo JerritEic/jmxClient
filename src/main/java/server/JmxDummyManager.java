@@ -1,4 +1,4 @@
-package jmxDummyServer;
+package server;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;

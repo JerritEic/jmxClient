@@ -1,4 +1,4 @@
-package jmxClient;
+package client;
 
 import java.io.FileWriter;
 import java.nio.file.Path;

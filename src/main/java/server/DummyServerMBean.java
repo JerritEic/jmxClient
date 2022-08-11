@@ -1,4 +1,4 @@
-package jmxDummyServer;
+package server;
 
 public interface DummyServerMBean {
     // Circular array of tick times in nanoseconds
