@@ -54,8 +54,8 @@ public class JmxClient {
          * The JMX URI/URL system is confusing but well documented. For a succinct version see:
          *  https://stackoverflow.com/questions/2768087/explain-jmx-url
          */
-        JMXServiceURL url = new JMXServiceURL(MessageFormat.format(
-            "service:jmx:rmi:///jndi/rmi://{0}:{1}/jmxrmi", ip, portnum));
+        JMXServiceURL url = new JMXServiceURL(
+            "service:jmx:rmi:///jndi/rmi://%s:%s/jmxrmi".formatted(ip, portnum));
 
         JMXConnector jmxc = JMXConnectorFactory.connect(url, null);
         MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
