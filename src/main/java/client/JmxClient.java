@@ -45,9 +45,9 @@ public class JmxClient {
         long[] prev = null;
 
         // Initialize the file to write tick time too
-        String to_write = "timestamp, tickTime,\n";
+        String toWrite = "timestamp, tickTime,\n";
         FileWriter out = new FileWriter(filePath);
-        out.write(to_write);
+        out.write(toWrite);
 
         long endTime = System.currentTimeMillis() + timeToSample;
         // Begin sampling
@@ -84,9 +84,8 @@ public class JmxClient {
                 // Assign pseudo-timestamps to collected ticks and write to file
                 if (array.length != 1) {
                     for (int x = 0; x < array.length; x++) {
-                        to_write = MessageFormat.format("{0},{1},\n",
-                            sampleStartTime + (50L * x), array[x]);
-                        out.write(to_write);
+                        toWrite = "%d,%d,\n".formatted(sampleStartTime + (50L * x), array[x]);
+                        out.write(toWrite);
                     }
                     out.flush();
                 }
