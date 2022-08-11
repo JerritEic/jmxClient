@@ -1,6 +1,8 @@
 package jmxClient;
 
 import java.io.FileWriter;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.text.MessageFormat;
 import java.util.*;
 import javax.management.InstanceNotFoundException;
@@ -9,34 +11,35 @@ import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.Options;
 
 public class JmxClient {
     // Collect ticks every 2.5 seconds
     static int SAMPLING_INTERVAL = 2500;
 
-    /* Entry point
-     * Takes 4 optional arguments:
-     *    - id: the RMI stub, specific for the tested server
-     *    - port: the RMI port number
-     *    - out_folder: the file location to output tick log
-     *    - duration: max time to continue collecting ticks in milliseconds, defaults to max long
-     */
     public static void main(String[] args) throws Exception {
+        Options options = new Options();
+        options.addOption("ip", true, "Minecraft node IP address");
+        options.addOption("port", true, "Minecraft node port number");
+        options.addOption("id", true, "ID of the JMX resource to access");
+        options.addOption("out", true, "output directory");
+        options.addOption("dur", true, "sample duration");
 
-        String portnum = "25585";
-        String id = "net.minecraft.server:type=Server";
-        String outFolder = "0";
-        long timeToSample = Long.MAX_VALUE;
-        if (args.length >= 1)
-            id = args[0];
-        if (args.length >= 2)
-            portnum = args[1];
-        if (args.length >= 3)
-            outFolder = args[2];
-        if (args.length >= 4)
-            timeToSample =  Long.parseLong(args[3]);
-        String filePath = outFolder + "/tick_log.csv";
-        JMXServiceURL url = new JMXServiceURL("service:jmx:rmi:///jndi/rmi://:" + portnum + "/jmxrmi");
+        CommandLineParser parser = new DefaultParser();
+        CommandLine cmd = parser.parse(options, args);
+
+        String ip = cmd.getOptionValue("ip", "");
+        String portnum = cmd.getOptionValue("port", "25585");
+        String id = cmd.getOptionValue("id", "net.minecraft.server:type=Server");
+        Path filePath = Paths.get(cmd.getOptionValue("out", "."), "tick_log.csv");
+        long timeToSample = cmd.hasOption("dur") ? Long.parseLong(cmd.getOptionValue("dur")) :
+            Long.MAX_VALUE;
+
+        JMXServiceURL url = new JMXServiceURL(MessageFormat.format(
+            "service:jmx:rmi:///jndi/rmi://{0}:{1}/jmxrmi", ip, portnum));
 
         JMXConnector jmxc = JMXConnectorFactory.connect(url, null);
         MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
@@ -46,10 +49,13 @@ public class JmxClient {
 
         // Initialize the file to write tick time too
         String to_write = "timestamp, tickTime,\n";
-        FileWriter out = new FileWriter(filePath);
+        FileWriter out = new FileWriter(filePath.toFile());
         out.write(to_write);
 
-        long endTime = System.currentTimeMillis() + timeToSample;
+        long currentTime = System.currentTimeMillis();
+        // Compute end time (currentTime + timeToSample), but protect against wrap around
+        long endTime = timeToSample > (Long.MAX_VALUE - currentTime) ? Long.MAX_VALUE : currentTime
+            + timeToSample;
         // Begin sampling
         while (true) {
             long sampleStartTime = System.currentTimeMillis();
