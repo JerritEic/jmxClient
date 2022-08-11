@@ -59,64 +59,64 @@ public class JmxClient {
         JMXConnector jmxc = JMXConnectorFactory.connect(url, null);
         MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
 
-        long[] curr = null;
+        long[] curr;
         long[] prev = null;
         int currentTimestamp = 0;
 
         // Initialize the file to write tick time too
         String toWrite = "timestamp, tickTime,\n";
-        FileWriter out = new FileWriter(filePath.toFile());
-        out.write(toWrite);
+        try (FileWriter out = new FileWriter(filePath.toFile())) {
+            out.write(toWrite);
 
-        long currentTime = System.currentTimeMillis();
-        // Compute end time (currentTime + timeToSample), but protect against wrap around
-        long endTime = timeToSample > (Long.MAX_VALUE - currentTime) ? Long.MAX_VALUE : currentTime
-            + timeToSample;
-        // Begin sampling
-        while (true) {
-            long sampleStartTime = System.currentTimeMillis();
-            if(sampleStartTime > endTime){
-                System.out.println("sample duration expired.");
-                break;
-            }
-            // Fetch 'val' at RMI stub with name 'tickTime'
-            Object val = null;
-            try {
-                val = mbsc.getAttribute(new ObjectName(id), "tickTimes");
-            } catch (InstanceNotFoundException e) {
-                System.out.println("tickTimes not found, waiting...");
-                // Queries and outputs all registered MBeans
-                Set<ObjectName> MBeans = mbsc.queryNames(null,null);
-                for (ObjectName name : MBeans){
-                    System.out.println(name);
+            long currentTime = System.currentTimeMillis();
+            // Compute end time (currentTime + timeToSample), but protect against wrap around
+            long endTime = timeToSample > (Long.MAX_VALUE - currentTime) ? Long.MAX_VALUE : currentTime
+                + timeToSample;
+            // Begin sampling
+            while (true) {
+                long sampleStartTime = System.currentTimeMillis();
+                if (sampleStartTime > endTime) {
+                    System.out.println("sample duration expired.");
+                    break;
                 }
-                Thread.sleep(1000L);
-                continue;
-            }
-            // cast to correct type and check if successful
-            long[] vals = (long[])val;
-            if (vals.length != 100) {
-                System.out.println("Error: Malformed tickTimes array.\n");
-                break;
-            }
-
-            curr = vals;
-            if (prev != null) {
-                // Check against previously collected ticks, if exists
-                long[] array = findNew(prev, curr);
-                // Assign logical timestamps to collected ticks and write to file
-                if (array.length != 1) {
-                    for (int x = 0; x < array.length; x++) {
-                        toWrite = "%d,%d,\n".formatted(currentTimestamp++, array[x]);
-                        out.write(toWrite);
+                // Fetch 'val' at RMI stub with name 'tickTime'
+                Object val;
+                try {
+                    val = mbsc.getAttribute(new ObjectName(id), "tickTimes");
+                } catch (InstanceNotFoundException e) {
+                    System.out.println("tickTimes not found, waiting...");
+                    // Queries and outputs all registered MBeans
+                    Set<ObjectName> MBeans = mbsc.queryNames(null, null);
+                    for (ObjectName name : MBeans) {
+                        System.out.println(name);
                     }
-                    out.flush();
+                    Thread.sleep(1000L);
+                    continue;
                 }
+                // cast to correct type and check if successful
+                long[] vals = (long[]) val;
+                if (vals.length != 100) {
+                    System.out.println("Error: Malformed tickTimes array.\n");
+                    break;
+                }
+
+                curr = vals;
+                if (prev != null) {
+                    // Check against previously collected ticks, if exists
+                    long[] array = findNew(prev, curr);
+                    // Assign logical timestamps to collected ticks and write to file
+                    if (array.length != 1) {
+                        for (long l : array) {
+                            toWrite = "%d,%d,\n".formatted(currentTimestamp++, l);
+                            out.write(toWrite);
+                        }
+                        out.flush();
+                    }
+                }
+                prev = curr;
+                Thread.sleep(SAMPLING_INTERVAL);
             }
-            prev = curr;
-            Thread.sleep(SAMPLING_INTERVAL);
         }
-        out.close();
     }
 
     /*
@@ -211,7 +211,7 @@ public class JmxClient {
     public static long[] getNonZero(long[] array, int start, int max) {
         long[] temp = new long[max];
         Arrays.fill(temp, -1L);
-        int j = 0;
+        int j;
         for (int i = 0; i < max; i++) {
             j = start + i;
             if (j >= array.length)
@@ -231,8 +231,9 @@ public class JmxClient {
 
     public static void printArray(long[] array) {
         echo("[ ");
-        for (int i = 0; i < array.length; i++)
-            echo("" + array[i] + ", ");
+        for (long l : array) {
+            echo("" + l + ", ");
+        }
         echo(" ]\n");
     }
 
