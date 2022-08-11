@@ -1,6 +1,7 @@
 package jmxClient;
 
 import java.io.FileWriter;
+import java.text.MessageFormat;
 import java.util.*;
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanServerConnection;
@@ -9,7 +10,7 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
-public class jmxClient {
+public class JmxClient {
     // Collect ticks every 2.5 seconds
     static int SAMPLING_INTERVAL = 2500;
 
@@ -83,7 +84,8 @@ public class jmxClient {
                 // Assign pseudo-timestamps to collected ticks and write to file
                 if (array.length != 1) {
                     for (int x = 0; x < array.length; x++) {
-                        to_write = "" + sampleStartTime + 50L * x + "," + array[x] + ",\n";
+                        to_write = MessageFormat.format("{0},{1},\n",
+                            sampleStartTime + (50L * x), array[x]);
                         out.write(to_write);
                     }
                     out.flush();

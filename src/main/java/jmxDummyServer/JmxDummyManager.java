@@ -10,7 +10,7 @@ import java.lang.management.ManagementFactory;
 *    - write to file: whether to write generated tick values to file
 *    - duration: max time to continue creating ticks in milliseconds, defaults to max long
 */
-public class jmxDummyManager {
+public class JmxDummyManager {
     public static void main(String[] args)
             throws Exception {
         boolean writeToFile = true;
