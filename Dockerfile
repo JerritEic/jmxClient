@@ -3,6 +3,6 @@ COPY . .
 RUN mvn clean verify
 
 FROM openjdk:17-jdk-alpine
-COPY --from=builder target/jmxClient-shaded.jar /app/
+COPY --from=builder target/jmxClient.jar /app/
 RUN mkdir /data
-CMD ["java", "-jar", "/app/jmxClient-shaded.jar"]
+CMD ["java", "-jar", "/app/jmxClient.jar"]
