@@ -26,11 +26,11 @@ public class JmxClient {
     public static void main(String[] args) throws Exception {
         Options options = new Options();
         options.addOption("help", false, "print this message");
-        options.addOption("ip", true, "Minecraft server IP address");
-        options.addOption("port", true, "Minecraft server port number");
-        options.addOption("id", true, "ID of the JMX resource to access");
-        options.addOption("out", true, "output directory");
-        options.addOption("dur", true, "sample duration");
+        options.addOption(Option.IP.getName(), true, "Minecraft server IP address");
+        options.addOption(Option.PORT.getName(), true, "Minecraft server port number");
+        options.addOption(Option.ID.getName(), true, "ID of the JMX resource to access");
+        options.addOption(Option.OUT.getName(), true, "output directory");
+        options.addOption(Option.DUR.getName(), true, "sample duration");
 
         CommandLineParser parser = new DefaultParser();
         CommandLine cmd = parser.parse(options, args);
