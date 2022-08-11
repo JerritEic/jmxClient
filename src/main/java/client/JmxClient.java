@@ -1,4 +1,4 @@
-package jmxClient;
+package client;
 
 import java.io.FileWriter;
 import java.util.*;
@@ -9,7 +9,7 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
-public class jmxClient {
+public class JmxClient {
     // Collect ticks every 2.5 seconds
     static int SAMPLING_INTERVAL = 2500;
 
@@ -44,9 +44,9 @@ public class jmxClient {
         long[] prev = null;
 
         // Initialize the file to write tick time too
-        String to_write = "timestamp, tickTime,\n";
+        String toWrite = "timestamp, tickTime,\n";
         FileWriter out = new FileWriter(filePath);
-        out.write(to_write);
+        out.write(toWrite);
 
         long endTime = System.currentTimeMillis() + timeToSample;
         // Begin sampling
@@ -83,8 +83,8 @@ public class jmxClient {
                 // Assign pseudo-timestamps to collected ticks and write to file
                 if (array.length != 1) {
                     for (int x = 0; x < array.length; x++) {
-                        to_write = "" + sampleStartTime + 50L * x + "," + array[x] + ",\n";
-                        out.write(to_write);
+                        toWrite = "%d,%d,\n".formatted(sampleStartTime + (50L * x), array[x]);
+                        out.write(toWrite);
                     }
                     out.flush();
                 }

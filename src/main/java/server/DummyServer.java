@@ -1,4 +1,4 @@
-package jmxDummyServer;
+package server;
 
 import java.io.FileWriter;
 import java.io.IOException;
