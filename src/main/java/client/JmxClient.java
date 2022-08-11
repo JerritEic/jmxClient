@@ -14,6 +14,7 @@ import javax.management.remote.JMXServiceURL;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 
 public class JmxClient {
@@ -22,6 +23,7 @@ public class JmxClient {
 
     public static void main(String[] args) throws Exception {
         Options options = new Options();
+        options.addOption("help", false, "print this message");
         options.addOption("ip", true, "Minecraft node IP address");
         options.addOption("port", true, "Minecraft node port number");
         options.addOption("id", true, "ID of the JMX resource to access");
@@ -30,6 +32,12 @@ public class JmxClient {
 
         CommandLineParser parser = new DefaultParser();
         CommandLine cmd = parser.parse(options, args);
+
+        if (cmd.hasOption("help")) {
+            HelpFormatter formatter = new HelpFormatter();
+            formatter.printHelp("ant", options);
+            System.exit(0);
+        }
 
         String ip = cmd.getOptionValue("ip", "");
         String portnum = cmd.getOptionValue("port", "25585");
