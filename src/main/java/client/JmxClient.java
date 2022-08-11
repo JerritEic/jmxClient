@@ -46,6 +46,7 @@ public class JmxClient {
 
         long[] curr = null;
         long[] prev = null;
+        int currentTimestamp = 0;
 
         // Initialize the file to write tick time too
         String toWrite = "timestamp, tickTime,\n";
@@ -85,10 +86,11 @@ public class JmxClient {
             if (prev != null) {
                 // Check against previously collected ticks, if exists
                 long[] array = findNew(prev, curr);
-                // Assign pseudo-timestamps to collected ticks and write to file
+                // Assign logical timestamps to collected ticks and write to file
                 if (array.length != 1) {
                     for (int x = 0; x < array.length; x++) {
-                        toWrite = "%d,%d,\n".formatted(sampleStartTime + (50L * x), array[x]);
+                        toWrite = "%d,%d,\n".formatted(currentTimestamp, array[x]);
+                        currentTimestamp++;
                         out.write(toWrite);
                     }
                     out.flush();
