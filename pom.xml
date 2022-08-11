@@ -39,7 +39,7 @@
                             <outputFile>target/jmxClient-shaded.jar</outputFile>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>jmxClient.JmxClient</mainClass>
+                                    <mainClass>client.JmxClient</mainClass>
                                 </transformer>
                             </transformers>
                         </configuration>
@@ -54,7 +54,7 @@
                             <outputFile>target/jmxDummyServer-shaded.jar</outputFile>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>jmxDummyServer.JmxDummyManager</mainClass>
+                                    <mainClass>server.JmxDummyManager</mainClass>
                                 </transformer>
                             </transformers>
                         </configuration>
