@@ -39,12 +39,13 @@ public class JmxClient {
             System.exit(0);
         }
 
-        String ip = cmd.getOptionValue("ip", "");
-        String portnum = cmd.getOptionValue("port", "25564");
-        String id = cmd.getOptionValue("id", "net.minecraft.server:type=Server");
-        Path filePath = Paths.get(cmd.getOptionValue("out", "."), "tick_log.csv");
-        long timeToSample = cmd.hasOption("dur") ? Long.parseLong(cmd.getOptionValue("dur")) :
-            Long.MAX_VALUE;
+        String ip = cmd.getOptionValue(Option.IP.getName(), Option.IP.getDefault());
+        String portnum = cmd.getOptionValue(Option.PORT.getName(), Option.PORT.getDefault());
+        String id = cmd.getOptionValue(Option.ID.getName(), Option.ID.getDefault());
+        Path filePath = Paths.get(cmd.getOptionValue(Option.OUT.getName(), Option.OUT.getDefault()),
+            "tick_log.csv");
+        long timeToSample = Long.parseLong(cmd.getOptionValue(Option.DUR.getName(),
+            Option.DUR.getDefault()));
 
         JMXServiceURL url = new JMXServiceURL(MessageFormat.format(
             "service:jmx:rmi:///jndi/rmi://{0}:{1}/jmxrmi", ip, portnum));
