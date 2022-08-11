@@ -85,7 +85,7 @@ public class JmxClient {
             try {
                 val = mbsc.getAttribute(new ObjectName(id), "tickTimes");
             } catch (InstanceNotFoundException e) {
-                System.out.println("tickTimes not found, waiting...\n");
+                System.out.println("tickTimes not found, waiting...");
                 // Queries and outputs all registered MBeans
                 Set<ObjectName> MBeans = mbsc.queryNames(null,null);
                 for (ObjectName name : MBeans){
@@ -108,8 +108,7 @@ public class JmxClient {
                 // Assign logical timestamps to collected ticks and write to file
                 if (array.length != 1) {
                     for (int x = 0; x < array.length; x++) {
-                        toWrite = "%d,%d,\n".formatted(currentTimestamp, array[x]);
-                        currentTimestamp++;
+                        toWrite = "%d,%d,\n".formatted(currentTimestamp++, array[x]);
                         out.write(toWrite);
                     }
                     out.flush();
