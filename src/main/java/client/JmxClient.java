@@ -1,7 +1,11 @@
 package client;
 
 import java.io.FileWriter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
@@ -13,12 +17,14 @@ public class JmxClient {
     // Collect ticks every 2.5 seconds
     static int SAMPLING_INTERVAL = 2500;
 
-    /* Entry point
+    /*
+     * Entry point
      * Takes 4 optional arguments:
-     *    - id: the RMI stub, specific for the tested server
-     *    - port: the RMI port number
-     *    - out_folder: the file location to output tick log
-     *    - duration: max time to continue collecting ticks in milliseconds, defaults to max long
+     * - id: the RMI stub, specific for the tested server
+     * - port: the RMI port number
+     * - out_folder: the file location to output tick log
+     * - duration: max time to continue collecting ticks in milliseconds, defaults
+     * to max long
      */
     public static void main(String[] args) throws Exception {
 
@@ -33,12 +39,13 @@ public class JmxClient {
         if (args.length >= 3)
             outFolder = args[2];
         if (args.length >= 4)
-            timeToSample =  Long.parseLong(args[3]);
+            timeToSample = Long.parseLong(args[3]);
         String filePath = outFolder + "/tick_log.csv";
         /*
-        * The JMX URI/URL system is confusing but well documented. For a succinct version see:
-        *  https://stackoverflow.com/questions/2768087/explain-jmx-url
-        */
+         * The JMX URI/URL system is confusing but well documented. For a succinct
+         * version see:
+         * https://stackoverflow.com/questions/2768087/explain-jmx-url
+         */
         JMXServiceURL url = new JMXServiceURL("service:jmx:rmi:///jndi/rmi://:" + portnum + "/jmxrmi");
 
         JMXConnector jmxc = JMXConnectorFactory.connect(url, null);
@@ -57,7 +64,7 @@ public class JmxClient {
         // Begin sampling
         while (true) {
             long sampleStartTime = System.currentTimeMillis();
-            if(sampleStartTime > endTime){
+            if (sampleStartTime > endTime) {
                 System.out.println("sample duration expired.");
                 break;
             }
@@ -68,15 +75,15 @@ public class JmxClient {
             } catch (InstanceNotFoundException e) {
                 System.out.println("tickTimes not found, waiting...\n");
                 // Queries and outputs all registered MBeans
-                Set<ObjectName> MBeans = mbsc.queryNames(null,null);
-                for (ObjectName name : MBeans){
+                Set<ObjectName> MBeans = mbsc.queryNames(null, null);
+                for (ObjectName name : MBeans) {
                     System.out.println(name);
                 }
                 Thread.sleep(1000L);
                 continue;
             }
             // cast to correct type and check if successful
-            long[] vals = (long[])val;
+            long[] vals = (long[]) val;
             if (vals.length != 100) {
                 System.out.println("Error: Malformed tickTimes array.\n");
                 break;
@@ -89,7 +96,7 @@ public class JmxClient {
                 // Assign logical timestamps to collected ticks and write to file
                 if (array.length != 1) {
                     for (int x = 0; x < array.length; x++) {
-                        toWrite = "%d,%d,\n".formatted(currentTimestamp, array[x]);
+                        toWrite = String.format("%d,%d,\n", currentTimestamp, array[x]);
                         currentTimestamp++;
                         out.write(toWrite);
                     }
@@ -103,51 +110,58 @@ public class JmxClient {
     }
 
     /*
-     *  Compare previous and current set of ticks to find block of continuous changed ticks
+     * Compare previous and current set of ticks to find block of continuous changed
+     * ticks
      */
     public static long[] findNew(long[] prev, long[] curr) {
 
         List<Integer> oldToNew = new ArrayList<Integer>();
         List<Integer> newToOld = new ArrayList<Integer>();
         // Find all indices of changes from old to new values
-        for(int i =0; i < prev.length; i++){
+        for (int i = 0; i < prev.length; i++) {
             int j = (i + 1) % prev.length;
-            if(prev[i] == curr[i] && prev[j] != curr[j]){
+            if (prev[i] == curr[i] && prev[j] != curr[j]) {
                 oldToNew.add(j);
             }
-            if(prev[i] != curr[i] && prev[j] == curr[j]){
+            if (prev[i] != curr[i] && prev[j] == curr[j]) {
                 newToOld.add(j);
             }
         }
         // Simplest case, there is a clear start and end to new values
-        if(oldToNew.size() == 1 && newToOld.size() ==1){
+        if (oldToNew.size() == 1 && newToOld.size() == 1) {
             return subArray(curr, oldToNew.get(0), newToOld.get(0));
         }
-        // Else there is an extraneous value that is the same by chance as same spot in prev array,
+        // Else there is an extraneous value that is the same by chance as same spot in
+        // prev array,
         // very unlikely to happen
         System.out.println("Duplicate value detected in new ticks values!");
-        // Iterate start and finish indices to find combination that maximize new values (and minimize old ones)
+        // Iterate start and finish indices to find combination that maximize new values
+        // (and minimize old ones)
         int minOld = Integer.MAX_VALUE;
         int maxNew = 0;
         int bestStart = -1;
         int bestEnd = -1;
-        for(int start: oldToNew){
-            for (int finish : newToOld){
+        for (int start : oldToNew) {
+            for (int finish : newToOld) {
                 int i = start;
                 int numOld = 0;
                 int numNew = 0;
-                while(i != finish){
-                    if(prev[i] == curr[i]){numOld++;} else {numNew++;}
+                while (i != finish) {
+                    if (prev[i] == curr[i]) {
+                        numOld++;
+                    } else {
+                        numNew++;
+                    }
                     i = (i + 1) % curr.length;
                 }
                 // Lexicographic order numNew, numOld
-                if(numNew > maxNew){
+                if (numNew > maxNew) {
                     maxNew = numNew;
                     minOld = numOld;
                     bestStart = start;
                     bestEnd = finish;
-                } else if(numNew == maxNew){
-                    if(numOld <= minOld){
+                } else if (numNew == maxNew) {
+                    if (numOld <= minOld) {
                         maxNew = numNew;
                         minOld = numOld;
                         bestStart = start;
@@ -159,28 +173,31 @@ public class JmxClient {
         return subArray(curr, bestStart, bestEnd);
     }
 
-    // Returns a subarray of array starting at index start and ending at finish. Finish may be less than start.
-    public static long[] subArray(long[] array, int start, int finish){
+    // Returns a subarray of array starting at index start and ending at finish.
+    // Finish may be less than start.
+    public static long[] subArray(long[] array, int start, int finish) {
         int size = finish - start;
-        if(start > finish){
+        if (start > finish) {
             size = (array.length - start) + finish;
         }
         long[] temp = new long[size];
-        for(int i =0; i < size; i++){
+        for (int i = 0; i < size; i++) {
             int j = (start + i) % array.length;
             temp[i] = array[j];
         }
         return temp;
     }
 
-    //--------------- UTILITY FUNCTIONS ----------------------
+    // --------------- UTILITY FUNCTIONS ----------------------
     /*
-     *  If value at index is same in prev and curr, set it to 0. As sampling frequency is 2.5 seconds and the full
-     *  array of 100 ticks is 5 seconds worth of ticks, the new 50 ticks shouldn't overlap with the 50 previous
-     *  new ticks.
+     * If value at index is same in prev and curr, set it to 0. As sampling
+     * frequency is 2.5 seconds and the full
+     * array of 100 ticks is 5 seconds worth of ticks, the new 50 ticks shouldn't
+     * overlap with the 50 previous
+     * new ticks.
      */
     public static long[] listDiff(long[] prev, long[] curr) {
-        long[] diff = (long[])curr.clone();
+        long[] diff = (long[]) curr.clone();
         for (int i = 0; i < prev.length; i++) {
             if (curr[i] - prev[i] == 0L)
                 diff[i] = 0L;
@@ -204,6 +221,7 @@ public class JmxClient {
         }
         return temp;
     }
+
     public static void echo(String str) {
         System.out.print(str);
     }
